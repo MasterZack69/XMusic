@@ -1,17 +1,16 @@
-plugins {
-    id 'com.android.application'
-}
+apply plugin: 'com.android.application'
+apply plugin: 'com.mikepenz.aboutlibraries.plugin.android'
 
 android {
     namespace "com.xapps.media.xmusic"
-    compileSdk 36
+    compileSdk 37
 
     defaultConfig {
         applicationId "com.xapps.media.xmusic"
         minSdk 26
         targetSdk 36
-        versionCode 24
-        versionName "0.24 Alpha"
+        versionCode 35
+        versionName "0.35 Alpha"
 
         def localProps = new Properties()
         def localPropsFile = rootProject.file("local.properties")
@@ -24,10 +23,6 @@ android {
             else if (System.getenv(key) != null) return System.getenv(key)
             else throw new GradleException("$key is missing.")
         }
-
-        buildConfigField "String", "TG_BOT_TOKEN", "\"${getSecret('TG_BOT_TOKEN')}\""
-        buildConfigField "String", "TG_CHAT_ID", "\"${getSecret('TG_CHAT_ID')}\""
-        buildConfigField "String", "LOG_CHAT_ID", "\"${getSecret('LOG_CHAT_ID')}\""
     }
 
     buildFeatures {
@@ -42,8 +37,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     signingConfigs {
@@ -85,6 +80,7 @@ android {
             minifyEnabled false
             shrinkResources false
             signingConfig signingConfigs.debug
+			
         }
 
         preview {
@@ -106,8 +102,12 @@ android {
     }
 
     lint {
-        abortOnError false
+        abortOnError true
         checkReleaseBuilds false
+
+        explainIssues true
+
+        htmlReport true
     }
 
     splits {
@@ -137,18 +137,21 @@ repositories {
 
 dependencies {
 
-    implementation "io.github.kyant0:taglib:1.0.5" 
+    implementation "io.github.kyant0:taglib:1.0.6" 
     implementation "com.github.bumptech.glide:glide:5.0.3"
     implementation "com.google.code.gson:gson:2.13.1"
-    implementation "com.google.android.material:material:1.14.0-alpha06"
+    implementation "com.google.android.material:material:1.14.0"
     implementation "androidx.transition:transition:1.6.0"
     implementation "androidx.fragment:fragment:1.8.9"
     implementation "androidx.palette:palette:1.0.0"
 
-    implementation "androidx.media3:media3-common:1.8.0"
-    implementation "androidx.media3:media3-exoplayer:1.8.0"
-    implementation "androidx.media3:media3-session:1.8.0"
-
+    /*implementation "androidx.media3:media3-common:1.10.0"
+    implementation "androidx.media3:media3-exoplayer:1.10.0"
+    implementation "androidx.media3:media3-session:1.10.0"*/
+    implementation "com.github.grimmthejow.media:media3-exoplayer:legacysessionthread-SNAPSHOT"
+    implementation "com.github.grimmthejow.media:media3-session:legacysessionthread-SNAPSHOT"
+    implementation "com.github.grimmthejow.media:media3-cast:legacysessionthread-SNAPSHOT"
+    
     implementation "androidx.core:core-splashscreen:1.2.0"
     implementation "androidx.activity:activity:1.11.0"
     implementation "androidx.media:media:1.7.1"
@@ -156,15 +159,26 @@ dependencies {
     implementation "androidx.recyclerview:recyclerview:1.4.0"
     implementation "androidx.lifecycle:lifecycle-process:2.10.0"
 
-    implementation "org.jellyfin.media3:media3-ffmpeg-decoder:1.8.0+1"
+    //implementation "org.jellyfin.media3:media3-ffmpeg-decoder:1.8.0+1"
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.8.0+1") {
+        exclude group: "androidx.media3"
+    }
+
     implementation "com.github.rtugeek:colorseekbar:2.0.3"
     implementation "androidx.graphics:graphics-shapes:1.1.0"
     implementation "androidx.preference:preference:1.2.1"
     implementation "io.github.chayanforyou:marquee:1.0.0"
     implementation "com.github.Adonai:jaudiotagger:2.3.14"
     implementation "com.airbnb.android:lottie:6.7.1"
-    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0"
+	implementation "com.mikepenz:aboutlibraries-core:13.0.0"
 
     implementation(name: "fastscroller", ext: "aar")
     implementation(name: "roundedimageview", ext: "aar")
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += [
+            "-Xlint:unchecked",
+            "-Xlint:deprecation"
+    ]
 }

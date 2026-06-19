@@ -45,6 +45,9 @@
             android:orientation="vertical"
             android:background="#000000"
             android:alpha="0" />
+        <include
+            android:id="@+id/songDetailsSheetContainer"
+            layout="@layout/layout_song_details" />
         <androidx.coordinatorlayout.widget.CoordinatorLayout
             android:id="@+id/bottomMixer"
             android:layout_width="match_parent"
@@ -58,7 +61,7 @@
                 android:paddingTop="0dp"
                 android:orientation="vertical"
                 android:layout_gravity="bottom"
-                app:layout_behavior="com.xapps.media.xmusic.models.CustomBottomSheetBehavior"
+                app:layout_behavior="com.xapps.media.xmusic.models.BottomSheetBehavior"
                 android:background="@drawable/rounded_corners_bottom_sheet"
                 app:layoutDescription="@xml/motion_scene"
                 android:clickable="true"
@@ -292,17 +295,31 @@
                         android:visibility="gone">
                         <com.xapps.media.xmusic.widget.GradientView
                             android:id="@+id/mesh"
+							android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent" />
-                        <com.xapps.media.xmusic.widget.LyricsView
-                            android:id="@+id/lyrics_view"
-                            android:layout_height="match_parent"
-                            android:layout_width="match_parent"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintTop_toTopOf="parent"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            android:clipChildren="false"
-                            android:clipToPadding="false" />
+						<FrameLayout
+							android:id="@+id/lyrics_placeholder"
+						    android:layout_width="match_parent"
+						    android:layout_height="match_parent">
+						    <TextView
+							    android:id="@+id/placeholder_lyrics_text"
+								android:layout_width="wrap_content"
+							    android:layout_height="wrap_content"
+							    android:gravity="center"
+								android:layout_gravity="center"
+							    android:text="Hmm, No lyrics found\n¯⁠\⁠\\_⁠(⁠ツ⁠)⁠_⁠/⁠¯"
+							    android:textColor="?colorOnSurface"
+								android:alpha="0.85"
+							    android:textSize="24dp" />
+					    </FrameLayout>
+						<com.xapps.media.xmusic.widget.XLyricsView
+                            	android:id="@+id/xlyrics_view"
+                          	  android:layout_height="match_parent"
+                          	  android:layout_width="match_parent"
+                          	  android:clipChildren="false"
+                         	   android:clipToPadding="false"
+                        />
                     </androidx.constraintlayout.widget.ConstraintLayout>
                     <androidx.coordinatorlayout.widget.CoordinatorLayout
                         android:id="@+id/second_coordinator"
@@ -347,7 +364,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
-                android:translationY="125dp"
+                android:translationY="250dp"
                 app:menu="@menu/bnv_menu"
                 app:labelVisibilityMode="unlabeled"
                 app:itemTextAppearanceActive="@style/BoldStyleBNV" />

@@ -9,7 +9,9 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.*;
 import android.service.controls.actions.CommandAction;
-import android.util.Log;
+import com.xapps.media.xmusic.service.resume.ResumeSong;
+import com.xapps.media.xmusic.service.resume.ResumeState;
+import com.xapps.media.xmusic.utils.Log;
 import android.view.Choreographer;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -36,6 +38,8 @@ import com.xapps.media.xmusic.application.XApplication;
 import com.xapps.media.xmusic.data.DataManager;
 import com.xapps.media.xmusic.data.RuntimeData;
 import com.xapps.media.xmusic.helper.ServiceCallback;
+import com.xapps.media.xmusic.models.Song;
+import com.xapps.media.xmusic.stats.StatsAudioAnalyzer;
 import com.xapps.media.xmusic.utils.*;
 import java.io.*;
 import java.util.*;
@@ -57,10 +61,6 @@ public class PlayerService extends MediaLibraryService {
 	private Bitmap icon;  
 	public static boolean isPlaying, isRunning;  
 	private int currentState;
-	public static String currentTitle;  
-	public static String currentArtist;  
-	public static String currentCover;
-	public static Bitmap currentArt;
 	public static int lastProgress = 0;
 	public static int lastMax = 0;
     public static int currentPosition = 0;
@@ -84,11 +84,15 @@ public class PlayerService extends MediaLibraryService {
     private android.media.AudioFocusRequest audioFocusRequest;
     private boolean wasPausedDueToFocus = false;
     private boolean isInForeground = false;
+	private ResumeState lastSavedState;
+	private long lastResumeSave;
     
     private final IBinder binder = new LocalBinder();
     private Callback callback;
     
     private volatile long currentPlayerPositionMs = 0;
+	
+	private StatsAudioAnalyzer statsAnalyzer;
     
     private Choreographer choreographer;
     
@@ -104,7 +108,8 @@ public class PlayerService extends MediaLibraryService {
     public static Map<String, Integer> lightColors;
     public static Map<String, Integer> darkColors;
     
-    public static ArrayList<HashMap<String, Object>> songsMap = new ArrayList();
+    public static ArrayList<Song> songs = new ArrayList<>();
+	
     
     Player.Commands playerCommands = new Player.Commands.Builder().addAllCommands().build();
     
@@ -117,22 +122,44 @@ public class PlayerService extends MediaLibraryService {
     @Override
     public void onTaskRemoved(Intent i) {
         ExoPlayerHandler.post(() -> {
-            if (player.getMediaItemCount() == 0) stopSelf();
+            if (player.getMediaItemCount() == 0) {
+				Log.d("RESUME_TEST", "media items count is 0, saving state to file");
+				mainHandler.post(() -> {
+					
+				});
+			}
         });
+		Log.e("yes", "yes");
+		//stopForeground(STOP_FOREGROUND_REMOVE);
+		//NotificationManagerCompat.from(this).cancel(1001);
+		saveResumeState();
+		super.onTaskRemoved(i);
+		//pauseAllPlayersAndStopSelf();
     }
+	
+	@Override
+	public void onUpdateNotification(MediaSession session, boolean b) {
+		super.onUpdateNotification(session, b);
+		Log.e("hmm", "hmm");
+	}
 
 	@Override 
 	public void onCreate() {  
 		super.onCreate();  
+		registerReceiver(
+            noisyReceiver,
+            new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        );
+		statsAnalyzer = new StatsAudioAnalyzer(getApplicationContext());
         sendInitialUpdate(false); 
-        CustomNotificationProvider cnp = new CustomNotificationProvider(this);
+        DefaultMediaNotificationProvider cnp = new DefaultMediaNotificationProvider(this);
         cnp.setSmallIcon(R.drawable.service_icon);
         setMediaNotificationProvider(cnp);
         handlerThread.start();
         Looper backgroundLooper = handlerThread.getLooper();
-		ExoPlayerHandler = new Handler(backgroundLooper);
+		ExoPlayerHandler = new Handler(Looper.getMainLooper()/*backgroundLooper*/);
         DefaultRenderersFactory renderersFactory = new DefaultRenderersFactory(this).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
-		player = new ExoPlayer.Builder(this, renderersFactory).setLooper(backgroundLooper).build();
+		player = new ExoPlayer.Builder(this, renderersFactory).setLooper(Looper.getMainLooper()).build();
         if (!isBuilt) {
 		    setupMediaSession();
             isBuilt = true;
@@ -156,7 +183,8 @@ public class PlayerService extends MediaLibraryService {
 	@Nullable  
 	@Override  
 	public IBinder onBind(Intent intent) {  
-        if (intent.getAction() == MediaSessionService.SERVICE_INTERFACE) {
+		if (intent.getAction() == null) return null;
+        if (intent.getAction().equals(MediaSessionService.SERVICE_INTERFACE)) {
             return super.onBind(intent);
         }
 		return binder;
@@ -170,17 +198,17 @@ public class PlayerService extends MediaLibraryService {
 			if (intent.getAction().equals("ACTION_UPDATE")) {
                 mediaItems = new ArrayList<>();
                 data = "";
-                ArrayList<HashMap<String, Object>> song = RuntimeData.songsMap;
+                ArrayList<Song> song = RuntimeData.songs;
                 executor.execute(() -> {
                     for (int i = 0; i < song.size(); i++) {
-                        if (song.get(i).get("thumbnail") != null) {
-                            mt = new MediaMetadata.Builder().setTitle(song.get(i).get("title").toString()).setArtist(song.get(i).get("author").toString()).setArtworkUri(Uri.parse("file://"+song.get(i).get("thumbnail").toString())).build();
+                        if (song.get(i).getArtworkUri() != null) {
+                            mt = new MediaMetadata.Builder().setTitle(song.get(i).title).setArtist(song.get(i).artist).setArtworkUri(song.get(i).getArtworkUri()).build();
                         } else {
-                            mt = new MediaMetadata.Builder().setTitle(song.get(i).get("title").toString()).setArtist(song.get(i).get("author").toString()).setArtworkUri(fallbackUri).build();
+                            mt = new MediaMetadata.Builder().setTitle(song.get(i).title).setArtist(song.get(i).artist).setArtworkUri(fallbackUri).build();
                         }
-                        String path = song.get(i).get("path").toString();
+                        String path = song.get(i).path;
                         Uri uri2 = Uri.fromFile(new File(path));
-                        data = data + song.get(i).get("title").toString() + "|s|" + song.get(i).get("author").toString() + "|s|" + path + "#i#";
+                        data = data + song.get(i).title + "|s|" + song.get(i).artist + "|s|" + path + "#i#";
                         MediaItem mediaItem = new MediaItem.Builder().setMediaMetadata(mt).setUri(uri2).build();
                         mediaItems.add(mediaItem);
                     }
@@ -211,6 +239,11 @@ public class PlayerService extends MediaLibraryService {
                             @Override
                             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                                 currentPosition = player.getCurrentMediaItemIndex();
+								if (mediaItem == null || mediaItem.localConfiguration == null) {
+									statsAnalyzer.stopAnalysis();
+								} else {
+									statsAnalyzer.startAnalysis(RuntimeData.songs.get(currentPosition));
+								}
                                 sendUpdate(true);
                             }
                                 
@@ -218,12 +251,37 @@ public class PlayerService extends MediaLibraryService {
                             public void onIsPlayingChanged(boolean playing) {
                                 isPlaying = playing;
                                 ServiceCallback.Hub.send(ServiceCallback.CALLBACK_VUMETER_UPDATE);
+								if (isPlaying) {
+									statsAnalyzer.resumeAnalysis();
+								} else {
+									statsAnalyzer.pauseAnalysis();
+								}
+                            }
+								
+							@Override
+                            public void onEvents(Player player, Player.Events events) {
+                                if (
+                                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                                events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
+                                events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+                                events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED) ||
+                                events.contains(Player.EVENT_PLAYBACK_PARAMETERS_CHANGED)
+                                ) {
+                                    saveResumeState();
+                                }
                             }
                     
                             });
                         }
                     });
                 });
+            } else if (intent.getAction().equals("ACTION_STOP")) {
+				ExoPlayerHandler.post(() -> {
+					player.stop();
+					player.clearMediaItems();
+				});
+			} else if (Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) {
+                super.onStartCommand(intent, flags, startId);
             }
 		}     
 		return START_STICKY;  
@@ -232,19 +290,36 @@ public class PlayerService extends MediaLibraryService {
     private ExecutorService executor_ = Executors.newFixedThreadPool(2);
     private long lastUpdate = 0;
     
-    private void sendUpdate(boolean isFromNotif) {
+    public void sendUpdate(boolean isFromNotif) {
         if (System.currentTimeMillis() - lastUpdate < 50 || currentPosition < 0) return;
         lastUpdate = System.currentTimeMillis();
         executor_.execute(() -> {
             Bitmap transparentBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.transparent); 
             Bitmap bmp;
-            if (RuntimeData.songsMap == null) {
+            if (RuntimeData.songs == null) {
                 bmp = transparentBitmap;
             } else {
-                Object thumb = RuntimeData.songsMap.get(currentPosition).get("thumbnail");
-                bmp = thumb == null? transparentBitmap : loadBitmapFromPath(thumb.toString());
+                Uri thumb = RuntimeData.songs.get(currentPosition).getArtworkUri();
+				boolean exists = false;
+                try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(thumb, "r")) {
+                    exists = pfd != null;
+                } catch (Exception ignored) {
+                }
+                bmp = exists? loadBitmapFromPath(thumb) : transparentBitmap;
             }
             if (DataManager.areStableColors()) {
+                ColorPaletteUtils.generateFromColor(MaterialColorUtils.colorPrimary, (light, dark) -> {
+                    lightColors = light;
+                    darkColors = dark;
+                    ServiceCallback.Hub.send(ServiceCallback.CALLBACK_COLORS_UPDATE);
+                });
+            } else {
+                ColorPaletteUtils.generateFromBitmap(bmp, (light, dark) -> {
+                    lightColors = light;
+                    darkColors = dark;
+                    ServiceCallback.Hub.send(ServiceCallback.CALLBACK_COLORS_UPDATE);
+                });
+            }if (DataManager.areStableColors()) {
                 ColorPaletteUtils.generateFromColor(MaterialColorUtils.colorPrimary, (light, dark) -> {
                     lightColors = light;
                     darkColors = dark;
@@ -271,10 +346,10 @@ public class PlayerService extends MediaLibraryService {
         });
     }
     
-    private Bitmap loadBitmapFromPath(String uri) {
+    private Bitmap loadBitmapFromPath(Uri uri) {
         InputStream in = null;
         try {
-            in = getContentResolver().openInputStream(Uri.parse("file://"+uri));
+            in = getContentResolver().openInputStream(uri);
             return BitmapFactory.decodeStream(in);
         } catch (Exception e) {
             e.printStackTrace();
@@ -284,6 +359,107 @@ public class PlayerService extends MediaLibraryService {
                 try { in.close(); } catch (IOException ignored) {}
             }
         }
+    }
+	
+	private ResumeState buildResumeState() {
+		
+        ResumeState state = new ResumeState();
+		
+		state.shuffle = player.getShuffleModeEnabled();
+        state.repeatMode = player.getRepeatMode();
+        state.currentIndex = player.getCurrentMediaItemIndex();
+        state.positionMs = player.getCurrentPosition();
+        state.speed = player.getPlaybackParameters().speed;
+
+        for (Song song : RuntimeData.songs) {
+        state.songs.add(
+            new ResumeSong(
+                song.title,
+                song.artist,
+                song.path,
+                song.getArtworkUri() != null
+                    ? song.getArtworkUri().toString()
+                    : null
+                )
+            );
+        }
+
+        return state;
+    }
+	
+	private void saveResumeState() {
+        long now = System.currentTimeMillis();
+
+        if (now - lastResumeSave < 3000) {
+            return;
+        }
+
+        lastResumeSave = now;
+
+        ExoPlayerHandler.post(() -> {
+            ResumeState state = buildResumeState();
+
+            executor.execute(() -> {
+                try (
+                FileOutputStream fos = openFileOutput("resume_state.dat", MODE_PRIVATE);
+                ObjectOutputStream oos = new ObjectOutputStream(fos)
+                ) {
+                    oos.writeObject(state);
+                } catch (Exception e) {
+                    Log.e("RESUME_TEST", "SAVE FAILED", e);
+                }
+            });
+        });
+    }
+	
+	private ResumeState loadResumeState() {
+        try (
+        FileInputStream fis = openFileInput("resume_state.dat");
+        ObjectInputStream ois = new ObjectInputStream(fis)
+        ) {
+            return (ResumeState) ois.readObject();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+	
+	private MediaSession.MediaItemsWithStartPosition restorePlaylist() {
+        ResumeState state = loadResumeState();
+
+        if (state == null || state.songs.isEmpty()) {
+            return new MediaSession.MediaItemsWithStartPosition(
+                new ArrayList<>(),
+                0,
+                0
+            );
+        }
+
+        ArrayList<MediaItem> items = new ArrayList<>();
+
+        for (ResumeSong song : state.songs) {
+            MediaMetadata metadata = new MediaMetadata.Builder()
+                .setTitle(song.title)
+                .setArtist(song.artist)
+                .setArtworkUri(
+                    song.artworkUri != null
+                    ? Uri.parse(song.artworkUri)
+                    : fallbackUri
+                )
+                .build();
+
+            items.add(
+            new MediaItem.Builder()
+                .setMediaMetadata(metadata)
+                .setUri(Uri.fromFile(new File(song.path)))
+                .build()
+            );
+        }
+
+        return new MediaSession.MediaItemsWithStartPosition(
+            items,
+            9,
+            9999
+        );
     }
     
     private byte[] toByteArray(Bitmap bitmap) {
@@ -311,8 +487,24 @@ public class PlayerService extends MediaLibraryService {
             choreographer.postFrameCallback(this);
         }
     };
+    
+    private final Handler progressHandler = new Handler(Looper.getMainLooper());
 
-    private void startUpdates() {
+private final Runnable progressRunnable = new Runnable() {
+    @Override
+    public void run() {
+        if (player != null && isExecutorStarted) {
+            currentProgress = player.getCurrentPosition();
+            RuntimeData.currentProgress = currentProgress;
+            ServiceCallback.Hub.send(ServiceCallback.CALLBACK_PROGRESS_UPDATE);
+            
+            ExoPlayerHandler.postDelayed(this, 10);
+        }
+    }
+};
+    
+
+    /*private void startUpdates() {
         if (isExecutorStarted) return;
         isExecutorStarted = true;
         choreographer.postFrameCallback(playerProgressCallback);
@@ -321,7 +513,22 @@ public class PlayerService extends MediaLibraryService {
     private void stopUpdates() {
         isExecutorStarted = false;
         choreographer.removeFrameCallback(playerProgressCallback);
-    }
+    }*/
+    
+    private void startUpdates() {
+    if (isExecutorStarted) return;
+    isExecutorStarted = true;
+   
+    ExoPlayerHandler.removeCallbacks(progressRunnable);
+    
+    ExoPlayerHandler.post(progressRunnable);
+}
+
+private void stopUpdates() {
+    isExecutorStarted = false;
+    ExoPlayerHandler.removeCallbacks(progressRunnable);
+}
+    
 
 	
     
@@ -371,26 +578,38 @@ public class PlayerService extends MediaLibraryService {
 		}  
 	}  
 	
-	@Override  
-	public void onDestroy() {  
-		if (handler != null && updateProgressRunnable != null) handler.removeCallbacks(updateProgressRunnable);  
-		ExoPlayerHandler.post(() -> {
+    @Override
+    public void onDestroy() {
+        stopUpdates();
+
+        ExoPlayerHandler.post(() -> {
             if (player != null) {
+                player.clearMediaItems();
                 player.release();
                 player = null;
             }
-	    });
-        if (mediaSession != null) {
-            mediaSession.release();
-            mediaSession = null;
-        }
+
+            if (mediaSession != null) {
+                mediaSession.release();
+                mediaSession = null;
+            }
+
+            handlerThread.quitSafely();
+        });
+
         if (executor != null && !executor.isShutdown()) {
             executor.shutdownNow();
             executor = null;
         }
-        super.onDestroy();  
-		abandonAudioFocus();
-	}  
+
+        abandonAudioFocus();
+
+        try {
+            unregisterReceiver(noisyReceiver);
+        } catch (Exception ignored) {}
+
+        super.onDestroy();
+    }
 	
 	private PendingIntent getServiceIntent(Context context, String action) {  
 		Intent intent = new Intent(context, PlayerService.class);  
@@ -462,16 +681,14 @@ public class PlayerService extends MediaLibraryService {
         private int shuffleIcon = shuffleMode.equals("SHUFFLE_ON")? R.drawable.ic_shuffle : R.drawable.ic_shuffle_off;
      
         SessionCommand loopCommand = new SessionCommand(loopMode, Bundle.EMPTY);
-        CommandButton loopButton = new CommandButton.Builder()
-                                    .setIconResId(loopIcon)
+        CommandButton loopButton = new CommandButton.Builder(getLoopMedia3Icon(loopMode))
                                     .setDisplayName("repeat")
                                     .setSessionCommand(loopCommand)
                                     .setSlots(CommandButton.SLOT_FORWARD)
                                     .build();
                                     
         SessionCommand shuffleCommand = new SessionCommand(shuffleMode, Bundle.EMPTY);
-        CommandButton shuffleButton = new CommandButton.Builder()
-                                        .setIconResId(shuffleIcon)
+        CommandButton shuffleButton = new CommandButton.Builder(getShuffleMedia3Icon(shuffleMode))
                                         .setDisplayName("shuffle")
                                         .setSessionCommand(shuffleCommand)
                                         .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
@@ -550,15 +767,13 @@ public class PlayerService extends MediaLibraryService {
                     };
 
                     loopCommand = new SessionCommand(loopMode, Bundle.EMPTY);
-                    loopButton = new CommandButton.Builder()
-                        .setIconResId(loopIcon)
+                    loopButton = new CommandButton.Builder(getLoopMedia3Icon(loopMode))
                         .setDisplayName("repeat")
                         .setSessionCommand(loopCommand)
                         .setSlots(CommandButton.SLOT_FORWARD)
                         .build();
                     shuffleCommand = new SessionCommand(shuffleMode, Bundle.EMPTY);
-                    shuffleButton = new CommandButton.Builder()
-                                        .setIconResId(shuffleIcon)
+                    shuffleButton = new CommandButton.Builder(getShuffleMedia3Icon(shuffleMode))
                                         .setDisplayName("shuffle")
                                         .setSessionCommand(shuffleCommand)
                                         .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
@@ -573,28 +788,64 @@ public class PlayerService extends MediaLibraryService {
             }
             
             
-            /*@Override
-            public ListenableFuture<MediaSession.MediaItemsWithStartPosition> onPlaybackResumption(MediaSession mediaSession, ControllerInfo controller) {
-                MediaItemsWithStartPosition resumptionPlaylist = restorePlaylist();
-                return Futures.immediateFuture(resumptionPlaylist);
-            }*/
+            @Override
+public ListenableFuture<MediaSession.MediaItemsWithStartPosition> onPlaybackResumption(
+        MediaSession mediaSession,
+        ControllerInfo controller,
+        boolean isForPlayback
+) {
+    SettableFuture<MediaSession.MediaItemsWithStartPosition> future = SettableFuture.create();
+
+    executor.execute(() -> {
+        try {
+            MediaSession.MediaItemsWithStartPosition items = restorePlaylist();
+            future.set(items);
+        } catch (Exception e) {
+            future.setException(e);
+        }
+    });
+
+    return future;
+}
+
+		
+		@Override
+public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(
+        MediaLibrarySession session, 
+        ControllerInfo browser, 
+        @Nullable LibraryParams params
+) {
+    MediaItem rootItem = new MediaItem.Builder()
+            .setMediaId("XMUSIC_ROOT_ID")
+            .setMediaMetadata(new MediaMetadata.Builder()
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .build())
+            .build();
+
+    if (params != null && params.isRecent) {
+        return Futures.immediateFuture(LibraryResult.ofItem(rootItem, params));
+    }
+
+    return Futures.immediateFuture(LibraryResult.ofItem(rootItem, null));
+}
+		
 
     }
-    
-    private MediaSession.MediaItemsWithStartPosition restorePlaylist() {
-        String data = DataManager.loadItemsList();
-        String[] items = data.split("#i#");
-        mediaItems = new ArrayList<>();
-        for (int i = 0; i < items.length; i++) {
-            String itemString = items[i].toString();
-            if (!itemString.trim().isEmpty()) {
-                String[] itemData = itemString.split("\\|s\\|");
-                MediaMetadata metadata = new MediaMetadata.Builder().setTitle(itemData[0].toString()).setArtist(itemData[1].toString()).build();
-                MediaItem item = new MediaItem.Builder().setMediaMetadata(metadata).setUri(Uri.parse("file://"+itemData[2].toString())).build();
-                mediaItems.add(item);
-            }
-        }
-        return new MediaSession.MediaItemsWithStartPosition(mediaItems, 0, 0);
+	
+	private int getLoopMedia3Icon(String mode) {
+        return switch (mode) {
+            case "LOOP_OFF" -> CommandButton.ICON_REPEAT_OFF;
+            case "LOOP_SINGLE" -> CommandButton.ICON_REPEAT_ONE;
+            default -> CommandButton.ICON_REPEAT_ALL;
+        };
+    }
+
+    private int getShuffleMedia3Icon(String mode) {
+        return switch (mode) {
+            case "SHUFFLE_ON" -> CommandButton.ICON_SHUFFLE_ON;
+            default -> CommandButton.ICON_SHUFFLE_OFF;
+        };
     }
 
     private void setupAudioFocusRequest() {
@@ -611,7 +862,6 @@ public class PlayerService extends MediaLibraryService {
         
     }
 
-
     public void abandonAudioFocus() {
         audioManager.abandonAudioFocusRequest(audioFocusRequest);
     }
@@ -624,12 +874,15 @@ public class PlayerService extends MediaLibraryService {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
-                if (player.isPlaying()) {
-                    player.pause();
-                }
+				ExoPlayerHandler.post(() -> {
+                    if (player.isPlaying()) {
+                        player.pause();
+                    }
+				});
             }
         }
     };
+	
 
     public class LocalBinder extends Binder {
         public PlayerService getService() {

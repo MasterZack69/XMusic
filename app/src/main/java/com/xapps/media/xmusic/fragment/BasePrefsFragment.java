@@ -28,6 +28,7 @@ import com.xapps.media.xmusic.data.DataManager;
 import com.xapps.media.xmusic.databinding.*;
 import com.xapps.media.xmusic.utils.XUtils;
 
+import java.util.Collections;
 import java.util.List;
 
 public abstract class BasePrefsFragment extends BaseFragment {
@@ -35,22 +36,24 @@ public abstract class BasePrefsFragment extends BaseFragment {
     private MainActivity activity;
     private ItemsListAdapter adapter;
     private FragmentBasePrefsBinding binding;
-    protected abstract List<SettingsItem> provideItems();
+    protected List<SettingsItem> provideItems() {
+		return Collections.emptyList();
+	};
 
     private void initialize() {
         binding.recyclerView.addItemDecoration(new SpacingDecoration(getActivity()));
         binding.recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
         adapter = new ItemsListAdapter(this, getActivity(), provideItems());
         binding.recyclerView.setAdapter(adapter);
+		binding.toolbar.setNavigationOnClickListener(v -> {
+            getActivity().getOnBackPressedDispatcher().onBackPressed();
+			activity.HideBNV(false);
+        });
     }
 
     @Nullable
     @Override
-    public View onCreateView(
-            @NonNull LayoutInflater inflater,
-            @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState
-    ) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         binding = FragmentBasePrefsBinding.inflate(inflater, container, false);
         activity = (MainActivity) getActivity();
         initialize();
@@ -182,7 +185,7 @@ public abstract class BasePrefsFragment extends BaseFragment {
             binding.title.setTypeface(binding.title.getTypeface(), Typeface.BOLD);
             binding.description.setText(item.description);
             binding.item.setOnClickListener(v -> {
-                host.onNavigate(item);
+                host.onItemSelected(item);
             });
         }
     }
@@ -210,7 +213,7 @@ public abstract class BasePrefsFragment extends BaseFragment {
         }
     }
     
-    protected void onNavigate(SettingsItem item) {}
+    protected void onItemSelected(SettingsItem item) {}
     
     protected void onSwitchChanged(SettingsItem item, boolean value) {
         switch (item.id) {
@@ -218,6 +221,7 @@ public abstract class BasePrefsFragment extends BaseFragment {
                 DataManager.setStableColors(value);
             break;
             default :
+			    DataManager.sp.edit().putBoolean(item.id, value).apply();
             break;
         }
     }
@@ -252,5 +256,9 @@ public abstract class BasePrefsFragment extends BaseFragment {
                 outRect.set(0, 0, 0, spacing);
             }
         }
+    }
+
+    public FragmentBasePrefsBinding getBinding() {
+        return binding;
     }
 }

@@ -3,6 +3,8 @@ package com.xapps.media.xmusic.lyric;
 import android.os.Handler;
 import android.os.Looper;
 
+import android.os.ParcelFileDescriptor;
+import com.kyant.taglib.TagLib;
 import org.jaudiotagger.audio.AudioFile;
 import org.jaudiotagger.audio.AudioFileIO;
 import org.jaudiotagger.tag.FieldKey;
@@ -73,24 +75,37 @@ private static String extractInternal(String audioPath) {
     return best;  
 }  
 
-private static String extractEmbedded(String path) {  
-    try {  
-        AudioFile audioFile = AudioFileIO.read(new File(path));  
-        Tag tag = audioFile.getTag();  
-        if (tag == null) return null;  
+private static String extractEmbedded(String path) {
+    ParcelFileDescriptor fd = null;
 
-        String lyrics = tag.getFirst(FieldKey.LYRICS);  
-          
-        if (lyrics == null || lyrics.isEmpty()) {  
-            lyrics = tag.getFirst("LYRICS");  
-        }  
+    try {
+        fd = ParcelFileDescriptor.open(
+                new File(path),
+                ParcelFileDescriptor.MODE_READ_ONLY
+        );
 
-        return (lyrics == null || lyrics.isEmpty()) ? null : lyrics;  
+        ParcelFileDescriptor dup = fd.dup();
 
-    } catch (Exception e) {  
-        return null;  
-    }  
-}  
+        String[] lyrics = TagLib.getMetadataPropertyValues(
+                dup.detachFd(),
+                "LYRICS"
+        );
+
+        if (lyrics != null && lyrics.length > 0) {
+            return lyrics[0];
+        }
+
+        return null;
+
+    } catch (Throwable t) {
+        return null;
+
+    } finally {
+        try {
+            if (fd != null) fd.close();
+        } catch (Exception ignored) {}
+    }
+}
 
 private static int score(String text, boolean embedded) {  
     int score = embedded ? 1000 : 0;  

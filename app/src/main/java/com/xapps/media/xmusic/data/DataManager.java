@@ -1,6 +1,7 @@
 package com.xapps.media.xmusic.data;
 import android.content.Context;
 import android.content.SharedPreferences;
+import com.xapps.media.xmusic.helper.SongSorter;
 
 public class DataManager {
     public static SharedPreferences sp;
@@ -104,4 +105,48 @@ public class DataManager {
     public static String loadItemsList() {
         return sp.getString("listData", "");
     }
+
+    public static void setDescendingOrder(boolean b) {
+        sp.edit().putBoolean("descending_order", b).apply();
+    }
+
+    public static boolean isDescendingOrder() {
+        return sp.getBoolean("descending_order", true);
+    }
+
+    public static void setSongFilterType(SongSorter.SortBy sortBy) {
+        sp.edit().putString("filter_type", sortBy.name()).apply();
+    }
+
+    public static SongSorter.SortBy getSongFilterType() {
+        String value = sp.getString("filter_type", SongSorter.SortBy.TITLE.name());
+        try {
+            return SongSorter.SortBy.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            return SongSorter.SortBy.TITLE;
+        }
+    }
+    
+    public static void setBlurOn(boolean b) {
+        sp.edit().putBoolean("blur_effect", b).apply();
+    }
+
+    public static boolean isBlurOn() {
+        return sp.getBoolean("blur_effect", false);
+    }
+
+    public static String getFontConfig() {
+		return sp.getString("font_config", new StringBuilder()
+            .append("'wdth' ").append(100).append(", ")
+            .append("'wght' ").append(500).append(", ")
+            .append("'opsz' ").append(18).append(", ")
+            .append("'GRAD' ").append(0).append(", ")
+            .append("'ROND' ").append(0).append(", ")
+            .append("'slnt' ").append(0)
+        .toString());
+	}
+
+    public static void setFontConfig(String config) {
+		sp.edit().putString("font_config", config).apply();
+	}
 }

@@ -5,7 +5,7 @@
     android:id="@+id/coordinator"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@null"
+    android:background="?colorSurfaceContainer"
     android:orientation="vertical">
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/app_bar"
@@ -13,42 +13,74 @@
         android:layout_height="wrap_content"
         android:background="@null"
         app:liftOnScroll="false"
+        android:elevation="2dp"
         app:layout_collapseMode="pin"
-        android:theme="@style/Widget.Material3.AppBarLayout">
+        android:fitsSystemWindows="true"
+        style="@style/Widget.Material3.AppBarLayout">
         <com.google.android.material.appbar.CollapsingToolbarLayout
             android:id="@+id/collapsing_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@null"
             app:contentScrim="@android:color/transparent"
-            app:layout_scrollFlags="scroll|enterAlwaysCollapsed|exitUntilCollapsed"
-            app:layout_collapseMode="pin">
-            <LinearLayout
-                android:id="@+id/custom_toolbar"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed"
+            app:expandedTitleTextAppearance="@style/ExpandedAppBarTextStyle"
+            app:expandedTitleSpacing="0dp"
+            app:collapsedTitleTextAppearance="@style/CollapsedAppBarTextStyleBig">
+            <com.google.android.material.appbar.MaterialToolbar
+                android:layout_height="?attr/actionBarSize"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@null"
-                android:orientation="horizontal"
-                android:gravity="bottom"
-                android:paddingHorizontal="15dp"
-                app:layout_collapseMode="pin">
-                <TextView
-                    android:id="@+id/top_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_name"
-                    android:textColor="?colorSurfaceInverse"
-                    android:paddingVertical="15dp"
-                    android:layout_weight="1"
-                    android:background="@null"
-                    android:textSize="30dp" />
-            </LinearLayout>
+                app:title="XMusic"
+                app:navigationIcon="@null"
+                android:theme="@style/ThemeOverlay.Material3.Toolbar.CircleNavigationButton"
+                app:layout_collapseMode="pin"
+                android:id="@+id/toolbar" />
         </com.google.android.material.appbar.CollapsingToolbarLayout>
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="visible"
+            android:paddingHorizontal="15dp"
+            android:background="@null"
+            app:tabIndicator="@drawable/tab_indicator_pill"
+            app:tabRippleColor="@null"
+            app:tabTextAppearance="@style/TabTextStyle"
+            app:tabIndicatorColor="?colorPrimaryContainer"
+            app:tabIndicatorGravity="stretch"
+            app:tabIndicatorFullWidth="true"
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabTextColor="?colorOutline"
+            app:tabPaddingStart="24dp"
+            app:tabPaddingEnd="24dp"
+            app:tabPaddingTop="2dp"
+            app:tabPaddingBottom="2dp"
+            app:tabSelectedTextAppearance="@style/SelectedTabTextStyle"
+            app:layout_collapseMode="pin"
+            app:tabSelectedTextColor="?colorSecondary">
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="One" />
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Two" />
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Three" />
+        </com.google.android.material.tabs.TabLayout>
     </com.google.android.material.appbar.AppBarLayout>
     <com.xapps.media.xmusic.widget.SpringOverScrollLayout
         android:id="@+id/swipe_refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:visibility="gone"
+        android:background="@drawable/rounded_corners_rv"
+        android:transitionGroup="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
         <FrameLayout
             android:id="@+id/indicatorContainer"
@@ -66,6 +98,7 @@
             android:id="@+id/songsList"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:transitionGroup="true"
             android:overScrollMode="never" />
     </com.xapps.media.xmusic.widget.SpringOverScrollLayout>
     <LinearLayout
@@ -98,17 +131,21 @@
             android:textColor="?colorOnSurface"
             android:visibility="invisible" />
     </LinearLayout>
-    <com.xapps.media.xmusic.widget.StatusBarScrimView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:scrimColor="?colorSurface" />
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/shuffle_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="right|top"
+        android:layout_gravity="right|bottom"
         android:translationY="0dp"
         android:layout_marginHorizontal="16dp"
-        android:src="@drawable/ic_shuffle"
-        style="@style/Widget.Material3.FloatingActionButton.Small.Primary" />
+        app:icon="@drawable/ic_shuffle"
+        android:text="Shuffle"
+        android:theme="@style/Widget.Material3.ExtendedFloatingActionButton.Small" />
+    <FrameLayout
+        android:id="@+id/blocking_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#00000000"
+        android:clickable="false"
+        android:focusable="false" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

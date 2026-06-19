@@ -1,6 +1,7 @@
 package com.xapps.media.xmusic.utils;
 
 import android.Manifest;
+import android.animation.Animator;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
@@ -9,8 +10,13 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Paint;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -18,6 +24,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.animation.ValueAnimator;
+import android.view.animation.DecelerateInterpolator;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -29,6 +36,7 @@ import com.xapps.media.xmusic.data.DataManager;
 import com.xapps.media.xmusic.R;
 
 import java.lang.reflect.Field;
+import java.util.Locale;
 
 public class XUtils {
 
@@ -258,6 +266,150 @@ public class XUtils {
         } else {
             return false;
         }
+    }
+    
+    public static boolean areBlursOrDynamicColorsSupported() {
+        return Build.VERSION.SDK_INT >= 31;
+    }
+    
+    public static void animateBlur(View view, boolean enable, long duration) {
+        ValueAnimator va = ValueAnimator.ofFloat(enable? 0.1f : 1f, enable? 1f : 0.1f);
+        va.setDuration(duration);
+        va.addUpdateListener(a -> {
+            float progress = (float) a.getAnimatedValue();
+            view.setRenderEffect(RenderEffect.createBlurEffect(25f*progress, 25f*progress, Shader.TileMode.CLAMP));
+        });
+        va.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationEnd(Animator a) {
+                if (!enable) view.setRenderEffect(null);
+            }
+            @Override
+            public void onAnimationStart(Animator a) {
+            }
+            @Override
+            public void onAnimationRepeat(Animator a) {
+            }
+            @Override
+            public void onAnimationCancel(Animator a) {
+            }
+        });
+        va.start();
+    }
+	
+	public static String hashFilePath(String filePath) {
+        return String.valueOf(filePath.hashCode());
+    }
+	
+	public static String getAudioCodec(Context context, Uri uri) {
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+
+        try {
+            mmr.setDataSource(context, uri);
+
+            String mime = mmr.extractMetadata(
+                MediaMetadataRetriever.METADATA_KEY_MIMETYPE
+            );
+
+            if (mime != null) {
+                switch (mime) {
+                    case "audio/flac":
+                        return "FLAC";
+                    case "audio/mpeg":
+                        return "MP3";
+                    case "audio/opus":
+                        return "OPUS";
+                    case "audio/vorbis":
+                        return "VORBIS";
+                    case "audio/alac":
+                        return "ALAC";
+                    case "audio/mp4":
+                        break; // sus
+                    default:
+                    if (mime.startsWith("audio/")) {
+                        return mime.replace("audio/", "").toUpperCase();
+                    }
+                }
+            }
+
+        } catch (Exception ignored) {
+        } finally {
+			try {
+                mmr.release();
+			} catch (Exception e) {
+				
+			}
+        }
+
+        MediaExtractor extractor = new MediaExtractor();
+
+        try {
+            extractor.setDataSource(context, uri, null);
+
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat format = extractor.getTrackFormat(i);
+                String mime = format.getString(MediaFormat.KEY_MIME);
+
+                if (mime == null || !mime.startsWith("audio/")) continue;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    String codecs = format.getString(MediaFormat.KEY_CODECS_STRING);
+
+                    if (codecs != null) {
+                        String lower = codecs.toLowerCase();
+
+                        if (lower.contains("alac")) return "ALAC";
+                        if (lower.contains("mp4a")) return "AAC";
+                        if (lower.contains("opus")) return "OPUS";
+                    }
+                }
+
+                if ("audio/mp4a-latm".equals(mime)) return "AAC";
+                if ("audio/alac".equals(mime)) return "ALAC";
+            }
+    
+        } catch (Exception ignored) {
+        } finally {
+            extractor.release();
+        }
+
+        return "UNKNOWN";
+    }
+
+    public static String millisecondsToDuration(long milliseconds) {
+        long seconds = milliseconds / 1000;
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long remainingSeconds = seconds % 60;
+
+        if (hours > 0) {
+            return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, remainingSeconds);
+        } else {
+            return String.format(Locale.getDefault(), "%02d:%02d", minutes, remainingSeconds);
+        }
+    }
+    
+
+    public static void animateSize(View v, int w, int h, long d) {
+        ViewGroup.LayoutParams p = v.getLayoutParams();
+
+        int sw = v.getWidth();
+        int sh = v.getHeight();
+
+        int tw = (w == -1) ? sw : w;
+        int th = (h == -1) ? sh : h;
+
+        ValueAnimator a = ValueAnimator.ofFloat(0f, 1f);
+        a.setDuration(d);
+
+        a.addUpdateListener(i -> {
+            float f = (float) i.getAnimatedValue();
+            p.width = (int) (sw + (tw - sw) * f);
+            p.height = (int) (sh + (th - sh) * f);
+            v.setLayoutParams(p);
+        });
+    
+        a.start();
     }
 
 }

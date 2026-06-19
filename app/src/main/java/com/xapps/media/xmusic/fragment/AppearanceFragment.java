@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,6 +13,7 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewKt;
 import androidx.fragment.app.Fragment;
 import androidx.transition.ChangeBounds;
 import androidx.transition.Fade;
@@ -30,8 +32,9 @@ import com.xapps.media.xmusic.data.DataManager;
 import com.xapps.media.xmusic.databinding.FragmentAppearanceBinding;
 import com.xapps.media.xmusic.utils.XUtils;
 import com.xapps.media.xmusic.R;
+import kotlin.Unit;
 
-public class AppearanceFragment extends BaseFragment {
+public class AppearanceFragment extends SubFragment {
     
     private FragmentAppearanceBinding binding;
     private MainActivity activity;
@@ -52,18 +55,24 @@ public class AppearanceFragment extends BaseFragment {
         binding.colorSeekBar.setThumbDrawer(dtd);
         binding.iconSwitch.setChecked(DataManager.isNewIconEnabled());
         binding.colorSeekBar.setProgress(DataManager.getProgress());
-        binding.firstSwitch.setChecked(DataManager.isDynamicColorsOn());
+        binding.firstSwitch.setChecked(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn());
+        binding.blurSwitch.setChecked(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isBlurOn());
         binding.oledSwitch.setChecked(DataManager.isOledThemeEnabled());
-        binding.secondSwitch.setChecked(DataManager.isCustomColorsOn());
-        binding.colorSeekBar.setVisibility(DataManager.isCustomColorsOn()? View.VISIBLE : View.GONE);
-        binding.applyButton.setVisibility(DataManager.isCustomColorsOn()? View.VISIBLE : View.GONE);
-        binding.colorSeekBar.setEnabled(DataManager.isDynamicColorsOn());
-        binding.secondSwitch.setEnabled(DataManager.isDynamicColorsOn());
-        binding.secondPref.setEnabled(DataManager.isDynamicColorsOn());
-        binding.applyButton.setEnabled(DataManager.isDynamicColorsOn());
-        binding.secondContent.setAlpha(DataManager.isDynamicColorsOn()? 1f : 0.5f);
-        binding.colorSeekBar.setAlpha(DataManager.isDynamicColorsOn()? 1f : 0.5f);
+        binding.secondSwitch.setChecked(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isCustomColorsOn());
+        binding.colorSeekBar.setVisibility(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isCustomColorsOn()? View.VISIBLE : View.GONE);
+        binding.applyButton.setVisibility(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isCustomColorsOn()? View.VISIBLE : View.GONE);
+        binding.colorSeekBar.setEnabled(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn());
+        binding.secondSwitch.setEnabled(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn());
+        binding.secondPref.setEnabled(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn());
+        binding.applyButton.setEnabled(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn());
+        binding.secondContent.setAlpha(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn()? 1f : 0.5f);
+        binding.colorSeekBar.setAlpha(XUtils.areBlursOrDynamicColorsSupported() && DataManager.isDynamicColorsOn()? 1f : 0.5f);
+        binding.blurPref.setEnabled(XUtils.areBlursOrDynamicColorsSupported());
+        binding.blurPref.setAlpha(XUtils.areBlursOrDynamicColorsSupported()? 1f : 0.5f);
+        binding.firstPref.setEnabled(XUtils.areBlursOrDynamicColorsSupported());
+        binding.firstPref.setAlpha(XUtils.areBlursOrDynamicColorsSupported()? 1f : 0.5f);
         binding.applyButton.setEnabled(false);
+		binding.collapsingtoolbar.setScrimAnimationDuration(0);
         switch (DataManager.getThemeMode()) {
             case 0:
                 binding.systemTheme.setChecked(true);
@@ -75,16 +84,31 @@ public class AppearanceFragment extends BaseFragment {
                 binding.lightTheme.setChecked(true);
                 break;
         }
+        
+        if (Build.VERSION.SDK_INT < 31) {
+            
+        }
+        ViewKt.doOnLayout(activity.getBinding().bottomNavigation, v -> {
+            binding.mainContainer.setPadding(binding.mainContainer.getPaddingRight(), binding.mainContainer.getPaddingTop(), binding.mainContainer.getPaddingLeft(), activity.getBinding().bottomNavigation.getHeight()*2);
+            return Unit.INSTANCE;
+        });
+        
     }
 
     private void setupListeners() {
         binding.toolbar.setNavigationOnClickListener(v -> {
             getActivity().getOnBackPressedDispatcher().onBackPressed();
+			activity.HideBNV(false);
         });
         binding.secondPref.setOnClickListener(v -> {
             binding.secondSwitch.setChecked(!binding.secondSwitch.isChecked());
             DataManager.setCustomColorsEnabled(binding.secondSwitch.isChecked());
             getActivity().recreate();
+        });
+        binding.blurPref.setOnClickListener(v -> {
+            binding.blurSwitch.setChecked(!binding.blurSwitch.isChecked());
+            DataManager.setBlurOn(binding.blurSwitch.isChecked());
+            activity.loadSettings();
         });
         binding.oldePref.setOnClickListener(v -> {
             binding.oledSwitch.setChecked(!binding.oledSwitch.isChecked());

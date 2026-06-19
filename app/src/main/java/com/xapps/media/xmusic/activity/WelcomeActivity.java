@@ -5,10 +5,11 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
-import android.util.Log;
+import com.xapps.media.xmusic.utils.Log;
 import android.view.*;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -36,6 +37,7 @@ import com.google.android.material.transition.MaterialSharedAxis;
 import com.xapps.media.xmusic.activity.MainActivity;
 import com.xapps.media.xmusic.R;
 import com.xapps.media.xmusic.helper.SongMetadataHelper;
+import com.xapps.media.xmusic.models.Song;
 import com.xapps.media.xmusic.utils.XUtils;
 import com.xapps.media.xmusic.common.SongLoadListener;
 import com.xapps.media.xmusic.data.DataManager;
@@ -73,6 +75,11 @@ public class WelcomeActivity extends AppCompatActivity {
         setupInsets();
         setupClickListeners();
         setupPermsLaunchers();
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setColor(MaterialColorUtils.colorPrimaryContainer);
+        bg.setCornerRadius(Float.MAX_VALUE);
+        binding.progressBar.setBackground(bg);
     }
     
     public void setupLottie() {
@@ -94,7 +101,7 @@ public class WelcomeActivity extends AppCompatActivity {
         XUtils.increaseMargins(binding.topTitle, 0, Math.round(XUtils.getStatusBarHeight(this)*1.5f), 0, 0);
         XUtils.increaseMargins(binding.screen2Text, 0, Math.round(XUtils.getStatusBarHeight(this)*1.5f), 0, 0);
         XUtils.increaseMargins(binding.beginButton, 0, 0, 0, XUtils.getNavigationBarHeight(this));
-        XUtils.increaseMargins(binding.screen2Button, 0, 0, XUtils.getNavigationBarHeight(this), XUtils.getNavigationBarHeight(this));
+        XUtils.setMargins(binding.screen2Button, 0, 0, XUtils.convertToPx(this, 16f), XUtils.getNavigationBarHeight(this));
     }
 
     private void setupClickListeners() {
@@ -111,18 +118,24 @@ public class WelcomeActivity extends AppCompatActivity {
                 executor.execute(() -> {
                     SongMetadataHelper.getAllSongs(this, new SongLoadListener(){
                         @Override
-                        public void onProgress(java.util.ArrayList<HashMap<String, Object>> songs, int count) {
+                        public void onStarted(int i) {
+                            binding.progressBar.setMax(i);
+                        }
+                        
+                        @Override
+                        public void onProgress(java.util.ArrayList<Song> songs, int count) {
+                            binding.progressBar.setProgressCompat(count, true);
                         }
                 
                         @Override
-                        public void onComplete(java.util.ArrayList<HashMap<String, Object>> songs) {
+                        public void onComplete(java.util.ArrayList<Song> songs) {
                             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                 DataManager.setDataInitialized();
                                 Intent i = new Intent();
                                 i.setClass(WelcomeActivity.this, MainActivity.class);
                                 startActivity(i);
                                 finish();
-                            }, 500);
+                            }, 1000);
                         }
                     });
                 });
@@ -171,6 +184,8 @@ public class WelcomeActivity extends AppCompatActivity {
         binding.secondGrantButton.setOnClickListener(v -> {
             if (Build.VERSION.SDK_INT >= 33) { 
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
         });
         
@@ -222,6 +237,9 @@ public class WelcomeActivity extends AppCompatActivity {
             storageReadAllowed = b3;
             binding.firstGrantButton.setEnabled(!b3);
             binding.firstGrantButton.setText(b3? "Granted" : "Grant");
+            boolean b4 = XUtils.checkPermissionAllowed(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            binding.secondGrantButton.setEnabled(!b4);
+            binding.secondGrantButton.setText(b4? "Granted" : "Grant");
             
         }
     }
@@ -229,9 +247,9 @@ public class WelcomeActivity extends AppCompatActivity {
     public void checkSDK() {
         if (Build.VERSION.SDK_INT <= 29) {
             binding.firstTitle.setText("Allow reading storage");
-            binding.firstDesc.setText("Needed to find media on your device");
-            binding.secondTitle.setText("Allow writing to storage");
-            binding.secondDesc.setText("Needed to manage your songs");
+            binding.firstDesc.setText("Needed to find songs on your device");
+            binding.firstTitle.setText("Allow writing to storage");
+            binding.firstDesc.setText("Needed to edit songs metadata on your device");
         } else if (30 <= Build.VERSION.SDK_INT && Build.VERSION.SDK_INT <= 32) {
             binding.firstTitle.setText("allow all files access");
             binding.firstDesc.setText("Needed to read and manage your songs");
