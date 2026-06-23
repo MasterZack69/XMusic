@@ -60,7 +60,7 @@ jobs:
 
       - name: Build Preview build for both ABIs
         if: github.event_name != 'pull_request'
-        run: | # Use the pipe for multi-line commands
+        run: |
           ./gradlew assemblePreview \
           -DLOG_CHAT_ID="${{ secrets.LOG_CHAT_ID }}" \
           -DTG_BOT_TOKEN="${{ secrets.BOT_TOKEN }}" \
@@ -70,12 +70,11 @@ jobs:
           -DKEY_ALIAS="${{ secrets.KEY_ALIAS }}" \
           -DALIAS_PASSWORD="${{ secrets.ALIAS_PASSWORD }}"
 
-
       - name: Rename APKs with commit hash
         run: |
           HASH=${GITHUB_SHA::8}
-          mv app/build/outputs/apk/preview/preview-arm64-v8a.apk app/build/outputs/apk/preview/preview-arm64-v8a-${HASH}.apk
-          mv app/build/outputs/apk/preview/preview-armeabi-v7a.apk app/build/outputs/apk/preview/preview-armeabi-v7a-${HASH}.apk
+          mv app/build/outputs/apk/preview/app-preview-arm64-v8a.apk app/build/outputs/apk/preview/preview-arm64-v8a-${HASH}.apk
+          mv app/build/outputs/apk/preview/app-preview-armeabi-v7a.apk app/build/outputs/apk/preview/preview-armeabi-v7a-${HASH}.apk
 
       - name: Upload preview arm64 apk
         uses: actions/upload-artifact@v4
@@ -90,12 +89,12 @@ jobs:
           path: app/build/outputs/apk/preview/preview-armeabi-v7a-*.apk
 
   send_preview_apks:
-  name: Send Preview APKs
-  runs-on: ubuntu-latest
-  needs: build_preview_apk
-  environment: Release
-  if: github.ref == 'refs/heads/preview'
-  steps:
+    name: Send Preview APKs
+    runs-on: ubuntu-latest
+    needs: build_preview_apk
+    environment: Release
+    if: github.ref == 'refs/heads/preview' && github.event_name != 'pull_request'
+    steps:
       - name: Download arm64 apk
         uses: actions/download-artifact@v4
         with:
@@ -109,7 +108,7 @@ jobs:
           path: .
 
       - name: Send arm64 APK to Telegram
-        if: success() && github.event_name != 'pull_request'
+        if: success()
         continue-on-error: true
         run: |
           HASH=${GITHUB_SHA::8}
@@ -120,7 +119,7 @@ jobs:
             -F caption="arm64-v8a Build"
 
       - name: Send armeabi APK to Telegram
-        if: success() && github.event_name != 'pull_request'
+        if: success()
         continue-on-error: true
         run: |
           HASH=${GITHUB_SHA::8}
