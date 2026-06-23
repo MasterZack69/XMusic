@@ -2,7 +2,6 @@ package com.xapps.media.xmusic.fragment;
 
 import android.os.Bundle;
 import androidx.fragment.app.Fragment;
-import androidx.preference.PreferenceFragmentCompat;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.xapps.media.xmusic.R;
